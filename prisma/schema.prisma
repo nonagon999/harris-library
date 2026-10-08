@@ -1,0 +1,301 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         String   @default("LIBRARIAN")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  transactions BorrowingTransaction[]
+  auditLogs    AuditLog[]
+  booksAdded   Book[]                 @relation("BooksAddedBy")
+  booksUpdated Book[]                 @relation("BooksUpdatedBy")
+  marcImports  MarcImportBatch[]
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+
+  books Book[]
+}
+
+model Location {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  academicLevel String?
+  description   String?
+  createdAt     DateTime @default(now())
+
+  bookCopies BookCopy[]
+}
+
+model Book {
+  id                 String   @id @default(cuid())
+  isbn               String?
+  title              String
+  subtitle           String?
+  author             String   @default("")
+  coAuthor           String?
+  editor             String?
+  publisher          String?
+  placeOfPublication String?
+  publicationYear    Int?
+  edition            String?
+  volume             String?
+  language           String   @default("English")
+  numberOfPages      Int?
+  illustration       String?
+  seriesName         String?
+  seriesNumber       String?
+  note               String?
+  description        String?
+  callNumber         String?
+  ddc                String?
+  lcClassification   String?  @map("lc_classification")
+  subject            String?
+  categoryId         String?
+  collectionType     String   @default("GENERAL_COLLECTION")
+  academicLevel      String   @default("GENERAL")
+  coverImageUrl      String?
+  isArchived         Boolean  @default(false)
+  addedById          String?
+  updatedById        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  category     Category?              @relation(fields: [categoryId], references: [id])
+  addedBy      User?                  @relation("BooksAddedBy", fields: [addedById], references: [id])
+  updatedBy    User?                  @relation("BooksUpdatedBy", fields: [updatedById], references: [id])
+  copies       BookCopy[]
+  transactions BorrowingTransaction[]
+  marcRecord   MarcRecord?
+
+  @@index([title])
+  @@index([author])
+  @@index([isbn])
+  @@index([callNumber])
+  @@index([lcClassification])
+  @@index([publisher])
+  @@index([subject])
+  @@index([seriesName])
+  @@index([academicLevel])
+  @@index([createdAt])
+}
+
+model BookCopy {
+  id              String   @id @default(cuid())
+  bookId          String
+  accessionNumber String   @unique
+  barcode         String?  @unique
+  locationId      String?
+  condition       String   @default("GOOD")
+  status          String   @default("AVAILABLE")
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  book         Book                   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  location     Location?              @relation(fields: [locationId], references: [id])
+  transactions BorrowingTransaction[]
+
+  @@index([bookId])
+  @@index([status])
+}
+
+model Borrower {
+  id            String   @id @default(cuid())
+  borrowerType  String
+  status        String   @default("ACTIVE")
+  studentId     String?  @unique
+  employeeId    String?  @unique
+  firstName     String
+  middleName    String?
+  lastName      String
+  suffix        String?
+  academicLevel String?
+  gradeLevel    String?
+  yearLevel     String?
+  section       String?
+  department    String?
+  position      String?
+  email         String?
+  contactNumber String?
+  address       String?
+  profilePhoto  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  transactions BorrowingTransaction[]
+
+  @@index([lastName, firstName])
+  @@index([studentId])
+  @@index([employeeId])
+}
+
+model BorrowingTransaction {
+  id              String    @id @default(cuid())
+  transactionNo   String    @unique
+  borrowerId      String
+  bookId          String
+  bookCopyId      String
+  borrowDate      DateTime  @default(now())
+  dueDate         DateTime
+  returnDate      DateTime?
+  status          String    @default("BORROWED")
+  renewalCount    Int       @default(0)
+  librarianId     String?
+  notes           String?
+  returnNotes     String?
+  returnCondition String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  borrower  Borrower @relation(fields: [borrowerId], references: [id])
+  book      Book     @relation(fields: [bookId], references: [id])
+  bookCopy  BookCopy @relation(fields: [bookCopyId], references: [id])
+  librarian User?    @relation(fields: [librarianId], references: [id])
+
+  @@index([borrowDate])
+  @@index([dueDate])
+  @@index([status])
+  @@index([borrowerId])
+  @@index([bookId])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String
+  module    String
+  recordId  String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([module])
+}
+
+model MarcRecord {
+  id                 String   @id @default(cuid())
+  bookId             String   @unique
+  leader             String   @default("00000nam a2200000 a 4500")
+  controlNumber001   String?
+  recordStatus       String?
+  recordType         String?
+  bibliographicLevel String?
+  encodingLevel      String?
+  catalogingForm     String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  book   Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  fields MarcField[]
+
+  @@index([controlNumber001])
+}
+
+model MarcField {
+  id           String  @id @default(cuid())
+  marcRecordId String
+  tag          String
+  ind1         String  @default(" ")
+  ind2         String  @default(" ")
+  controlValue String?
+  fieldOrder   Int     @default(0)
+
+  marcRecord MarcRecord     @relation(fields: [marcRecordId], references: [id], onDelete: Cascade)
+  subfields  MarcSubfield[]
+
+  @@index([marcRecordId, tag])
+  @@index([marcRecordId, fieldOrder])
+}
+
+model MarcSubfield {
+  id            String @id @default(cuid())
+  marcFieldId   String
+  code          String
+  value         String
+  subfieldOrder Int    @default(0)
+
+  marcField MarcField @relation(fields: [marcFieldId], references: [id], onDelete: Cascade)
+
+  @@index([marcFieldId, subfieldOrder])
+}
+
+model MarcImportBatch {
+  id             String    @id @default(cuid())
+  filename       String
+  fileFormat     String
+  importedById   String
+  totalRecords   Int       @default(0)
+  importedCount  Int       @default(0)
+  duplicateCount Int       @default(0)
+  errorCount     Int       @default(0)
+  skippedCount   Int       @default(0)
+  status         String    @default("PREVIEW")
+  reportJson     String?
+  createdAt      DateTime  @default(now())
+  completedAt    DateTime?
+
+  importedBy User               @relation(fields: [importedById], references: [id])
+  records    MarcImportRecord[]
+
+  @@index([createdAt])
+  @@index([importedById])
+}
+
+model MarcImportRecord {
+  id                String  @id @default(cuid())
+  batchId           String
+  recordIndex       Int
+  status            String
+  controlNumber     String?
+  title             String?
+  author            String?
+  isbn              String?
+  callNumber        String?
+  accessionNumber   String?
+  errorMessage      String?
+  duplicateOfBookId String?
+  importedBookId    String?
+  previewJson       String?
+
+  batch MarcImportBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, recordIndex])
+  @@index([batchId, status])
+}
+
+model LibrarySetting {
+  id                  String   @id @default(cuid())
+  schoolName          String   @default("Harris Memorial College, Inc.")
+  libraryName         String   @default("Harris Memorial College Library")
+  logoUrl             String?
+  contactEmail        String?
+  contactPhone        String?
+  address             String?
+  academicYear        String   @default("2025-2026")
+  borrowingPeriodDays Int      @default(7)
+  maxBooksAllowed     Int      @default(3)
+  renewalLimit        Int      @default(2)
+  libraryRules        String?
+  updatedAt           DateTime @updatedAt
+}
