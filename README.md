@@ -26,7 +26,7 @@ Online Public Access Catalog and Librarian Portal for **Harris Memorial College,
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/harris-library.git
+git clone https://github.com/nonagon999/harris-library.git
 cd harris-library
 ```
 
